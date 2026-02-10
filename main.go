@@ -22,6 +22,7 @@ type Config struct {
 	LNBitsAPIKey    string
 	CallbackURL     string
 	CallbackAPIKey  string
+	SMSNumber       string
 }
 
 var config Config
@@ -52,13 +53,10 @@ type LNBitsCheckResponse struct {
 	Paid bool `json:"paid"`
 }
 
-// ParkingData represents data to send to the parking server
-type ParkingData struct {
-	Plate    string  `json:"plate"`
-	Zone     string  `json:"zone"`
-	Hours    int64   `json:"hours"`
-	Amount   float64 `json:"amount"`
-	PaidAt   string  `json:"paid_at"`
+// SMSRequest represents the payload sent to the SMS server
+type SMSRequest struct {
+	Number  string `json:"number"`
+	Content string `json:"content"`
 }
 
 func main() {
@@ -68,6 +66,7 @@ func main() {
 		LNBitsAPIKey:   getEnv("LNBITS_API_KEY", ""),
 		CallbackURL:    getEnv("CALLBACK_URL", ""),
 		CallbackAPIKey: getEnv("CALLBACK_API_KEY", ""),
+		SMSNumber:      getEnv("SMS_NUMBER", ""),
 	}
 
 	if config.LNBitsAPIKey == "" {
@@ -76,6 +75,10 @@ func main() {
 
 	if config.CallbackURL == "" {
 		log.Fatal("CALLBACK_URL environment variable is required")
+	}
+
+	if config.SMSNumber == "" {
+		log.Fatal("SMS_NUMBER environment variable is required")
 	}
 
 	router := gin.Default()
@@ -262,12 +265,9 @@ func checkLNBitsPayment(paymentHash string) (bool, error) {
 }
 
 func sendToParkingServer(plate, zone, hours, amount string) error {
-	data := map[string]string{
-		"plate":   plate,
-		"zone":    zone,
-		"hours":   hours,
-		"amount":  amount,
-		"paid_at": time.Now().Format(time.RFC3339),
+	data := SMSRequest{
+		Number:  config.SMSNumber,
+		Content: fmt.Sprintf("%s %s %s", zone, plate, hours),
 	}
 
 	jsonData, err := json.Marshal(data)
