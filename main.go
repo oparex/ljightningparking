@@ -102,6 +102,9 @@ func main() {
 	// Check for SMS confirmation
 	router.GET("/check-sms", handleCheckSMS)
 
+	// Wake up SMS server GSM module
+	router.POST("/wakeup", handleWakeup)
+
 	port := getEnv("PORT", "8080")
 	log.Printf("Starting server on port %s", port)
 	router.Run(":" + port)
@@ -227,6 +230,51 @@ func handleCheckSMS(c *gin.Context) {
 	} else {
 		c.JSON(http.StatusOK, gin.H{"found": false})
 	}
+}
+
+func handleWakeup(c *gin.Context) {
+	go func() {
+		err := wakeupSMSServer()
+		if err != nil {
+			log.Printf("Failed to wake up SMS server: %v", err)
+		} else {
+			log.Printf("SMS server wakeup sent")
+		}
+	}()
+
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func wakeupSMSServer() error {
+	u, err := url.Parse(config.CallbackURL)
+	if err != nil {
+		return fmt.Errorf("invalid callback URL: %v", err)
+	}
+
+	wakeupURL := fmt.Sprintf("%s://%s/wakeup", u.Scheme, u.Host)
+
+	req, err := http.NewRequest("GET", wakeupURL, nil)
+	if err != nil {
+		return err
+	}
+
+	if config.CallbackAPIKey != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", config.CallbackAPIKey))
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("wakeup error: %s - %s", resp.Status, string(body))
+	}
+
+	return nil
 }
 
 func searchReceivedSMS(plate, after string) ([]SMSSearchResult, error) {
@@ -724,6 +772,16 @@ func generateHTML(zones []string) string {
         let checkSMSInterval;
         let currentPaymentHash;
         let currentParkingData;
+        let wakeupSent = false;
+
+        // Wake up SMS server on first interaction with plate or zone
+        function triggerWakeup() {
+            if (wakeupSent) return;
+            wakeupSent = true;
+            fetch('/wakeup', { method: 'POST' }).catch(() => {});
+        }
+        document.getElementById('plate').addEventListener('input', triggerWakeup);
+        document.getElementById('zone').addEventListener('change', triggerWakeup);
 
         // Hours increment/decrement
         decreaseBtn.addEventListener('click', () => {
