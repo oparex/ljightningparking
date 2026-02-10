@@ -1,0 +1,43 @@
+{{define "main"}}
+<!doctype html>
+<html lang="en">
+<head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <link rel="stylesheet" type="text/css" href="/static/css/styles.css">
+
+    <title>ljightning parking</title>
+</head>
+<body>
+
+<div class="container">
+    <form action="/pay" method="post">
+        <div class="form-group">
+            <label for="zone">In what zone are you parking</label>
+            <input type="text" class="form-control" id="zone" name="zone" aria-describedby="zoneHelp" placeholder="B1, C2...">
+            <small id="zoneHelp" class="form-text text-muted">Parking zone is located on parking machines on streets. <a target="_blank" rel="noopener noreferrer" href="http://www.lpt.si/parkirisca/uploads/cms/galery/Parkirne_cone_15122015_A3-1.png">map</a></small>
+        </div>
+        <div class="form-group">
+            <label for="licencePlate">Your car's licence plate</label>
+            <input type="text" class="form-control" id="licencePlate" name="plate" placeholder="LJBU855">
+        </div>
+        <div class="form-group">
+            <label for="nHours">How many hours will you park for</label>
+            <input type="number" class="form-control" id="nHours" name="hours" placeholder="1">
+        </div>
+        <button type="submit" class="btn btn-primary">Pay</button>
+    </form>
+</div>
+
+<!-- Optional JavaScript -->
+<!-- jQuery first, then Popper.js, then Bootstrap JS -->
+<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+</body>
+</html>
+{{end}}

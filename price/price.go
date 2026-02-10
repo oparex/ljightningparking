@@ -3,7 +3,7 @@ package price
 import (
 	"encoding/json"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 )
@@ -18,7 +18,7 @@ func GetPrice(pair string) float64 {
 
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Printf("Error while reading response for %s price: %s", pair, err)
 		return -1
@@ -36,19 +36,4 @@ func GetPrice(pair string) float64 {
 
 	return tickerJson.Last
 
-}
-
-// EuroToSatoshis converts an amount in euros to satoshis using current BTC/EUR price
-func EuroToSatoshis(euros float64) int64 {
-	btcPrice := GetPrice("btceur")
-	if btcPrice <= 0 {
-		log.Printf("Failed to get BTC price")
-		return -1
-	}
-
-	// Convert euros to BTC, then to satoshis (1 BTC = 100,000,000 satoshis)
-	btcAmount := euros / btcPrice
-	satoshis := int64(btcAmount * 100000000)
-
-	return satoshis
 }
