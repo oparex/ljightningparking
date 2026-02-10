@@ -9,6 +9,7 @@ import (
 	"ljightningparking/price"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"time"
@@ -59,6 +60,11 @@ type SMSRequest struct {
 	Content string `json:"content"`
 }
 
+// SMSSearchResult represents a received SMS from the search endpoint
+type SMSSearchResult struct {
+	Content string `json:"content"`
+}
+
 func main() {
 	// Load configuration from environment variables
 	config = Config{
@@ -92,6 +98,9 @@ func main() {
 
 	// Check payment status
 	router.GET("/check-payment/:payment_hash", handleCheckPayment)
+
+	// Check for SMS confirmation
+	router.GET("/check-sms", handleCheckSMS)
 
 	port := getEnv("PORT", "8080")
 	log.Printf("Starting server on port %s", port)
@@ -179,20 +188,83 @@ func handleCheckPayment(c *gin.Context) {
 		hours := c.Query("hours")
 		amount := c.Query("amount")
 
+		smsSentAt := time.Now().UTC().Format(time.RFC3339)
+
 		if plate != "" && zone != "" && hours != "" {
-			// Send data to parking server
-			go func() {
-				err := sendToParkingServer(plate, zone, hours, amount)
-				if err != nil {
-					log.Printf("Failed to send data to parking server: %v", err)
-				} else {
-					log.Printf("Successfully sent parking data for plate %s", plate)
-				}
-			}()
+			err := sendToParkingServer(plate, zone, hours, amount)
+			if err != nil {
+				log.Printf("Failed to send data to parking server: %v", err)
+			} else {
+				log.Printf("Successfully sent parking data for plate %s", plate)
+			}
 		}
+
+		c.JSON(http.StatusOK, gin.H{"paid": true, "sms_sent_at": smsSentAt})
+		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"paid": paid})
+	c.JSON(http.StatusOK, gin.H{"paid": false})
+}
+
+func handleCheckSMS(c *gin.Context) {
+	plate := c.Query("plate")
+	after := c.Query("after")
+
+	if plate == "" || after == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "plate and after are required"})
+		return
+	}
+
+	results, err := searchReceivedSMS(plate, after)
+	if err != nil {
+		log.Printf("Failed to search received SMS: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check SMS"})
+		return
+	}
+
+	if len(results) > 0 {
+		c.JSON(http.StatusOK, gin.H{"found": true, "content": results[0].Content})
+	} else {
+		c.JSON(http.StatusOK, gin.H{"found": false})
+	}
+}
+
+func searchReceivedSMS(plate, after string) ([]SMSSearchResult, error) {
+	u, err := url.Parse(config.CallbackURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid callback URL: %v", err)
+	}
+
+	baseURL := fmt.Sprintf("%s://%s", u.Scheme, u.Host)
+	searchURL := fmt.Sprintf("%s/received/search?q=%s&after=%s", baseURL, url.QueryEscape(plate), url.QueryEscape(after))
+
+	req, err := http.NewRequest("GET", searchURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if config.CallbackAPIKey != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", config.CallbackAPIKey))
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("SMS server error: %s - %s", resp.Status, string(body))
+	}
+
+	var results []SMSSearchResult
+	if err := json.NewDecoder(resp.Body).Decode(&results); err != nil {
+		return nil, err
+	}
+
+	return results, nil
 }
 
 func createLNBitsInvoice(amountSats int64, memo string) (*LNBitsInvoiceResponse, error) {
@@ -649,6 +721,7 @@ func generateHTML(zones []string) string {
         const formError = document.getElementById('formError');
 
         let checkPaymentInterval;
+        let checkSMSInterval;
         let currentPaymentHash;
         let currentParkingData;
 
@@ -761,7 +834,9 @@ func generateHTML(zones []string) string {
 
                     if (data.paid) {
                         clearInterval(checkPaymentInterval);
-                        showSuccess();
+                        document.getElementById('paymentStatus').innerHTML =
+                            '<div class="spinner"></div><p>Payment received! Confirming parking...</p>';
+                        startSMSCheck(currentParkingData.plate, data.sms_sent_at);
                     }
                 } catch (error) {
                     console.error('Error checking payment:', error);
@@ -769,18 +844,48 @@ func generateHTML(zones []string) string {
             }, 2000); // Check every 2 seconds
         }
 
-        function showSuccess() {
-            document.getElementById('paymentStatus').style.display = 'none';
-            document.getElementById('successMessage').style.display = 'block';
+        function startSMSCheck(plate, after) {
+            checkSMSInterval = setInterval(async () => {
+                try {
+                    const params = new URLSearchParams({
+                        plate: plate,
+                        after: after
+                    });
+                    const response = await fetch('/check-sms?' + params);
+                    const data = await response.json();
 
-            // Close modal after 3 seconds
+                    if (data.found) {
+                        clearInterval(checkSMSInterval);
+                        showSuccess(data.content);
+                    }
+                } catch (error) {
+                    console.error('Error checking SMS:', error);
+                }
+            }, 3000);
+        }
+
+        function showSuccess(smsContent) {
+            document.getElementById('paymentStatus').style.display = 'none';
+            const successEl = document.getElementById('successMessage');
+            let html = '<h3>✅ Parking Confirmed!</h3>';
+            if (smsContent) {
+                html += '<p>' + smsContent + '</p>';
+            } else {
+                html += '<p>Your parking has been activated.</p>';
+            }
+            successEl.innerHTML = html;
+            successEl.style.display = 'block';
+
+            // Close modal after 5 seconds
             setTimeout(() => {
                 modal.style.display = 'none';
                 form.reset();
                 hoursInput.value = 1;
                 document.getElementById('paymentStatus').style.display = 'block';
+                document.getElementById('paymentStatus').innerHTML =
+                    '<div class="spinner"></div><p>Waiting for payment...</p>';
                 document.getElementById('successMessage').style.display = 'none';
-            }, 3000);
+            }, 5000);
         }
 
         // Close modal when clicking outside
@@ -788,6 +893,7 @@ func generateHTML(zones []string) string {
             if (e.target === modal) {
                 if (confirm('Are you sure you want to cancel this payment?')) {
                     clearInterval(checkPaymentInterval);
+                    clearInterval(checkSMSInterval);
                     modal.style.display = 'none';
                 }
             }
