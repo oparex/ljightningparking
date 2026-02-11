@@ -6,6 +6,9 @@ parking-app
 *.so
 *.dylib
 
+# binary
+lightningparking
+
 # Test binary, built with `go test -c`
 *.test
 
