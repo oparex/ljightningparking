@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"ljightningparking/parking"
@@ -19,11 +20,11 @@ import (
 
 // Config holds application configuration
 type Config struct {
-	LNBitsURL       string
-	LNBitsAPIKey    string
-	CallbackURL     string
-	CallbackAPIKey  string
-	SMSNumber       string
+	LNBitsURL      string
+	LNBitsAPIKey   string
+	CallbackURL    string
+	CallbackAPIKey string
+	SMSNumber      string
 }
 
 var config Config
@@ -66,6 +67,9 @@ type SMSSearchResult struct {
 }
 
 func main() {
+	port := flag.Int("port", 9090, "server port")
+	flag.Parse()
+
 	// Load configuration from environment variables
 	config = Config{
 		LNBitsURL:      getEnv("LNBITS_URL", "https://legend.lnbits.com"),
@@ -105,9 +109,8 @@ func main() {
 	// Wake up SMS server GSM module
 	router.POST("/wakeup", handleWakeup)
 
-	port := getEnv("PORT", "8080")
-	log.Printf("Starting server on port %s", port)
-	router.Run(":" + port)
+	log.Printf("Starting server on port %d", *port)
+	router.Run(fmt.Sprintf(":%d", *port))
 }
 
 func handleMainPage(c *gin.Context) {
