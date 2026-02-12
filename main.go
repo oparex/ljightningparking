@@ -739,6 +739,27 @@ func generateHTML(zones []string) string {
         .footer a:hover {
             text-decoration: underline;
         }
+
+        /* Mobile styles */
+        @media (max-width: 768px) {
+            body {
+                padding: 0;
+                align-items: flex-start;
+            }
+
+            .container {
+                border-radius: 0;
+                padding: 15px;
+                box-shadow: none;
+            }
+
+            .modal-content {
+                margin: 0;
+                border-radius: 0;
+                width: 100%%;
+                max-width: 100%%;
+            }
+        }
     </style>
 </head>
 <body>
