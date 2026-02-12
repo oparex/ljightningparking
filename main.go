@@ -22,7 +22,7 @@ import (
 type Config struct {
 	LNBitsURL      string
 	LNBitsAPIKey   string
-	CallbackURL    string
+	SMSServer      string
 	CallbackAPIKey string
 	SMSNumber      string
 }
@@ -74,7 +74,7 @@ func main() {
 	config = Config{
 		LNBitsURL:      getEnv("LNBITS_URL", "https://legend.lnbits.com"),
 		LNBitsAPIKey:   getEnv("LNBITS_API_KEY", ""),
-		CallbackURL:    getEnv("CALLBACK_URL", ""),
+		SMSServer:      getEnv("SMS_SERVER", ""),
 		CallbackAPIKey: getEnv("CALLBACK_API_KEY", ""),
 		SMSNumber:      getEnv("SMS_NUMBER", ""),
 	}
@@ -83,8 +83,8 @@ func main() {
 		log.Fatal("LNBITS_API_KEY environment variable is required")
 	}
 
-	if config.CallbackURL == "" {
-		log.Fatal("CALLBACK_URL environment variable is required")
+	if config.SMSServer == "" {
+		log.Fatal("SMS_SERVER environment variable is required")
 	}
 
 	if config.SMSNumber == "" {
@@ -253,14 +253,7 @@ func handleWakeup(c *gin.Context) {
 }
 
 func wakeupSMSServer() error {
-	u, err := url.Parse(config.CallbackURL)
-	if err != nil {
-		return fmt.Errorf("invalid callback URL: %v", err)
-	}
-
-	wakeupURL := fmt.Sprintf("%s://%s/wakeup", u.Scheme, u.Host)
-
-	req, err := http.NewRequest("GET", wakeupURL, nil)
+	req, err := http.NewRequest("GET", config.SMSServer+"/wakeup", nil)
 	if err != nil {
 		return err
 	}
@@ -285,13 +278,7 @@ func wakeupSMSServer() error {
 }
 
 func searchReceivedSMS(plate, after string) ([]SMSSearchResult, error) {
-	u, err := url.Parse(config.CallbackURL)
-	if err != nil {
-		return nil, fmt.Errorf("invalid callback URL: %v", err)
-	}
-
-	baseURL := fmt.Sprintf("%s://%s", u.Scheme, u.Host)
-	searchURL := fmt.Sprintf("%s/received/search?q=%s&after=%s", baseURL, url.QueryEscape(plate), url.QueryEscape(after))
+	searchURL := fmt.Sprintf("%s/received/search?q=%s&after=%s", config.SMSServer, url.QueryEscape(plate), url.QueryEscape(after))
 
 	req, err := http.NewRequest("GET", searchURL, nil)
 	if err != nil {
@@ -402,7 +389,7 @@ func sendToParkingServer(plate, zone, hours, amount string) error {
 		return err
 	}
 
-	req, err := http.NewRequest("POST", config.CallbackURL, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest("POST", config.SMSServer+"/send", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return err
 	}
