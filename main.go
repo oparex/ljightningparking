@@ -109,6 +109,10 @@ func main() {
 	// Wake up SMS server GSM module
 	router.POST("/wakeup", handleWakeup)
 
+	// Legal pages
+	router.GET("/privacy", handlePrivacyPage)
+	router.GET("/terms", handleTermsPage)
+
 	log.Printf("Starting server on port %d", *port)
 	router.Run(fmt.Sprintf(":%d", *port))
 }
@@ -423,6 +427,16 @@ func sendToParkingServer(plate, zone, hours, amount string) error {
 	return nil
 }
 
+func handlePrivacyPage(c *gin.Context) {
+	html := generatePrivacyHTML()
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
+}
+
+func handleTermsPage(c *gin.Context) {
+	html := generateTermsHTML()
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
+}
+
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -709,6 +723,25 @@ func generateHTML(zones []string) string {
             margin-top: 10px;
             text-align: center;
         }
+
+        .footer {
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            text-align: center;
+            font-size: 12px;
+            color: #888;
+        }
+
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+            margin: 0 10px;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -742,6 +775,11 @@ func generateHTML(zones []string) string {
             <button type="submit" class="submit-btn" id="submitBtn">Generate Invoice</button>
             <div id="formError" class="error"></div>
         </form>
+
+        <div class="footer">
+            <a href="/privacy">Privacy Policy</a>
+            <a href="/terms">Terms of Use</a>
+        </div>
     </div>
 
     <!-- Invoice Modal -->
@@ -962,4 +1000,204 @@ func generateHTML(zones []string) string {
     </script>
 </body>
 </html>`, zoneOptions)
+}
+
+func generateLegalPageCSS() string {
+	return `
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 40px 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 700px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        h2 {
+            color: #333;
+            margin-top: 25px;
+            margin-bottom: 10px;
+            font-size: 20px;
+        }
+
+        p, li {
+            color: #555;
+            line-height: 1.7;
+            font-size: 15px;
+            margin-bottom: 10px;
+        }
+
+        ul {
+            margin-left: 20px;
+            margin-bottom: 15px;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-bottom: 25px;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        .last-updated {
+            color: #888;
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+`
+}
+
+func generatePrivacyHTML() string {
+	return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Lightning Parking</title>
+    <style>` + generateLegalPageCSS() + `</style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-link">&larr; Back to Lightning Parking</a>
+        <h1>Privacy Policy</h1>
+        <p class="last-updated">Last updated: February 2025</p>
+
+        <h2>1. Introduction</h2>
+        <p>Lightning Parking ("we", "us", "our") operates a parking payment service that allows users to pay for parking using the Bitcoin Lightning Network. We are committed to protecting your personal data in accordance with the EU General Data Protection Regulation (GDPR) (Regulation (EU) 2016/679).</p>
+
+        <h2>2. Data Controller</h2>
+        <p>Lightning Parking is the data controller responsible for your personal data collected through this service.</p>
+
+        <h2>3. Data We Collect</h2>
+        <p>When you use our service, we collect and process the following personal data:</p>
+        <ul>
+            <li><strong>License plate number</strong> &ndash; required to register your parking session with the municipal parking system.</li>
+            <li><strong>Parking zone</strong> &ndash; the selected zone where you are parking.</li>
+            <li><strong>Timestamp</strong> &ndash; the date and time your parking session is initiated and its duration.</li>
+            <li><strong>Payment data</strong> &ndash; Lightning Network invoice and payment hash (no personal financial information such as bank accounts or credit card numbers is collected).</li>
+        </ul>
+
+        <h2>4. Purpose and Legal Basis for Processing</h2>
+        <p>We process your data for the following purposes:</p>
+        <ul>
+            <li><strong>To provide the parking payment service</strong> &ndash; your license plate, zone, and timestamp are transmitted to the parking authority to activate your parking session. The legal basis is performance of a contract (Article 6(1)(b) GDPR).</li>
+            <li><strong>To process your payment</strong> &ndash; payment data is processed via the Lightning Network to complete your transaction. The legal basis is performance of a contract (Article 6(1)(b) GDPR).</li>
+        </ul>
+
+        <h2>5. Data Sharing</h2>
+        <p>Your parking data (license plate, zone, and duration) is shared with the parking authority via SMS to register your parking session. We do not sell, trade, or otherwise share your personal data with third parties for marketing purposes.</p>
+
+        <h2>6. Data Retention</h2>
+        <p>We do not operate a persistent database. Parking session data is transmitted to the parking authority in real time and is not stored on our servers beyond the duration of your active session. Payment records may be retained by the Lightning Network payment provider (LNbits) according to their own retention policies.</p>
+
+        <h2>7. Cookies</h2>
+        <p>This website does not use cookies, tracking pixels, or any other tracking technologies. No data is stored on your device.</p>
+
+        <h2>8. Your Rights Under GDPR</h2>
+        <p>Under the GDPR, you have the following rights regarding your personal data:</p>
+        <ul>
+            <li><strong>Right of access</strong> &ndash; you may request a copy of the data we hold about you.</li>
+            <li><strong>Right to rectification</strong> &ndash; you may request correction of inaccurate data.</li>
+            <li><strong>Right to erasure</strong> &ndash; you may request deletion of your data where there is no compelling reason for its continued processing.</li>
+            <li><strong>Right to restriction of processing</strong> &ndash; you may request that we limit how we use your data.</li>
+            <li><strong>Right to data portability</strong> &ndash; you may request your data in a structured, machine-readable format.</li>
+            <li><strong>Right to object</strong> &ndash; you may object to the processing of your data.</li>
+        </ul>
+        <p>To exercise any of these rights, please contact us using the details provided below.</p>
+
+        <h2>9. Data Security</h2>
+        <p>We use HTTPS encryption for all communications between your browser and our servers. Payment is processed via the Bitcoin Lightning Network, which does not require you to share any traditional financial information.</p>
+
+        <h2>10. Contact</h2>
+        <p>If you have any questions about this privacy policy or wish to exercise your data protection rights, please contact us at the address provided on the main website.</p>
+    </div>
+</body>
+</html>`
+}
+
+func generateTermsHTML() string {
+	return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terms of Use - Lightning Parking</title>
+    <style>` + generateLegalPageCSS() + `</style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-link">&larr; Back to Lightning Parking</a>
+        <h1>Terms of Use</h1>
+        <p class="last-updated">Last updated: February 2025</p>
+
+        <h2>1. Overview</h2>
+        <p>Lightning Parking provides a service that allows you to pay for street parking using Bitcoin via the Lightning Network. By using this service, you agree to the following terms.</p>
+
+        <h2>2. How the Service Works</h2>
+        <p>The parking payment process works as follows:</p>
+        <ul>
+            <li><strong>Step 1:</strong> You enter your vehicle's license plate number, select the parking zone where your vehicle is parked, and choose the desired parking duration (in hours).</li>
+            <li><strong>Step 2:</strong> The system calculates the parking fee in euros based on the zone rate and duration, then converts this amount to Bitcoin satoshis using real-time exchange rates.</li>
+            <li><strong>Step 3:</strong> A Lightning Network invoice is generated. You can pay by scanning the QR code with a Lightning-compatible Bitcoin wallet or by copying the invoice manually.</li>
+            <li><strong>Step 4:</strong> Once payment is confirmed on the Lightning Network, your parking session details (license plate, zone, and duration) are automatically sent to the parking authority to activate your parking.</li>
+            <li><strong>Step 5:</strong> You will receive an on-screen confirmation once the parking authority has processed your session.</li>
+        </ul>
+
+        <h2>3. Consent to Data Processing</h2>
+        <p>By using this service, you consent to the collection and processing of the following data:</p>
+        <ul>
+            <li>Your vehicle's <strong>license plate number</strong></li>
+            <li>The <strong>parking zone</strong> you select</li>
+            <li>The <strong>timestamp</strong> and <strong>duration</strong> of your parking session</li>
+        </ul>
+        <p>This data is necessary to register your parking session with the parking authority and is transmitted in real time. For full details on how your data is handled, please refer to our <a href="/privacy" style="color: #667eea;">Privacy Policy</a>.</p>
+
+        <h2>4. Payment</h2>
+        <p>All payments are made via the Bitcoin Lightning Network. Payments are final and non-reversible due to the nature of the Lightning Network. The amount in satoshis is calculated using the real-time BTC/EUR exchange rate at the time of invoice generation. Exchange rate fluctuations between invoice generation and payment are your responsibility.</p>
+
+        <h2>5. Accuracy of Information</h2>
+        <p>You are responsible for entering the correct license plate number, selecting the correct parking zone, and choosing the appropriate duration. Lightning Parking is not liable for parking fines or penalties resulting from incorrect information entered by the user.</p>
+
+        <h2>6. Service Availability</h2>
+        <p>We strive to keep the service available at all times, but we do not guarantee uninterrupted availability. The service depends on third-party systems including the Lightning Network payment infrastructure and the parking authority's SMS processing system. We are not liable for delays or failures caused by these external systems.</p>
+
+        <h2>7. Limitation of Liability</h2>
+        <p>Lightning Parking is provided "as is" without warranties of any kind. We are not liable for any direct, indirect, incidental, or consequential damages arising from your use of the service, including but not limited to parking fines resulting from system delays or failures.</p>
+
+        <h2>8. Changes to These Terms</h2>
+        <p>We reserve the right to update these terms at any time. Continued use of the service after changes are posted constitutes acceptance of the revised terms.</p>
+
+        <h2>9. Contact</h2>
+        <p>If you have any questions about these terms, please contact us at the address provided on the main website.</p>
+    </div>
+</body>
+</html>`
 }
