@@ -439,7 +439,7 @@ func generateHTML(zones []string) string {
 		zoneOptions += fmt.Sprintf(`<option value="%s">%s - €%.2f/hr (max %dh)</option>`,
 			zone, zone, zoneInfo.Price, int(zoneInfo.MaxTime))
 	}
-	
+
 	html := fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -935,7 +935,7 @@ func generateHTML(zones []string) string {
 <body>
     <div class="container">
         <h1>⚡⚡⚡ Lightning Parking</h1>
-        <p class="subtitle">Pay for your parking with Bitcoin in Ljubljana</p>
+        <p class="subtitle">Pay for your parking in Ljubljana with Bitcoin</p>
 
         <form id="parkingForm">
             <div class="form-group">
@@ -1193,7 +1193,7 @@ func generateHTML(zones []string) string {
     </script>
 </body>
 </html>`, zoneOptions)
-	
+
 	return html
 }
 
