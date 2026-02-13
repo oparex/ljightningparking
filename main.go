@@ -31,7 +31,7 @@ var config Config
 
 // SubmitRequest represents the incoming form data
 type SubmitRequest struct {
-	Plate string `json:"plate" binding:"required"`
+	Plate string `json:"plate"`
 	Zone  string `json:"zone" binding:"required"`
 	Hours int64  `json:"hours" binding:"required,min=1"`
 }
@@ -143,8 +143,8 @@ func handleSubmit(c *gin.Context) {
 		return
 	}
 
-	// Validate plate (basic validation)
-	if len(req.Plate) < 2 {
+	// Validate plate (skip for Donate zone)
+	if req.Zone != "Donate" && len(req.Plate) < 2 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid license plate"})
 		return
 	}
@@ -160,7 +160,12 @@ func handleSubmit(c *gin.Context) {
 	}
 
 	// Create invoice
-	memo := fmt.Sprintf("Parking: %s @ %s for %d hours (%.2f EUR)", req.Plate, req.Zone, req.Hours, feeEuros)
+	var memo string
+	if req.Zone == "Donate" {
+		memo = fmt.Sprintf("Donate (%.2f EUR)", feeEuros)
+	} else {
+		memo = fmt.Sprintf("Parking: %s @ %s for %d hours (%.2f EUR)", req.Plate, req.Zone, req.Hours, feeEuros)
+	}
 	invoice, err := createLNBitsInvoice(feeSatoshis, memo)
 	if err != nil {
 		log.Printf("Failed to create invoice: %v", err)
@@ -1006,7 +1011,7 @@ func generateHTML(zones []string) string {
         <form id="parkingForm">
             <div class="form-group">
                 <label for="plate">License Plate</label>
-                <input type="text" id="plate" name="plate" required placeholder="Enter your license plate">
+                <input type="text" id="plate" name="plate" placeholder="Enter your license plate">
             </div>
 
             <div class="form-group">
@@ -1072,9 +1077,12 @@ func generateHTML(zones []string) string {
         let currentParkingData;
         let wakeupSent = false;
 
-        // Wake up SMS server on first interaction with plate or zone
+        // Wake up SMS server once all fields are filled (skip for Donate zone)
         function triggerWakeup() {
             if (wakeupSent) return;
+            const plate = document.getElementById('plate').value.trim();
+            const zone = document.getElementById('zone').value;
+            if (!plate || !zone || zone === 'Donate') return;
             wakeupSent = true;
             fetch('/wakeup', { method: 'POST' }).catch(() => {});
         }
@@ -1110,6 +1118,13 @@ func generateHTML(zones []string) string {
                 zone: document.getElementById('zone').value,
                 hours: parseInt(hoursInput.value)
             };
+
+            if (formData.zone !== 'Donate' && formData.plate.length < 2) {
+                formError.textContent = 'Please enter a valid license plate';
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Generate Invoice';
+                return;
+            }
 
             try {
                 const response = await fetch('/submit', {
