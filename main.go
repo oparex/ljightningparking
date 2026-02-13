@@ -1061,7 +1061,55 @@ func generateHTML(zones []string) string {
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
     <script>
+        // GeoJSON FeatureCollection of Ljubljana parking zone polygons
+        // TODO: Add real zone polygons
+        const zonesGeoJSON = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": { "zone": "C1" },
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[
+                            [14.4950, 46.0550],
+                            [14.5050, 46.0550],
+                            [14.5050, 46.0500],
+                            [14.4950, 46.0500],
+                            [14.4950, 46.0550]
+                        ]]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": { "zone": "B2" },
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[
+                            [14.5050, 46.0550],
+                            [14.5150, 46.0550],
+                            [14.5150, 46.0500],
+                            [14.5050, 46.0500],
+                            [14.5050, 46.0550]
+                        ]]
+                    }
+                }
+            ]
+        };
+
+        function findZoneByLocation(lat, lng) {
+            const point = turf.point([lng, lat]);
+            for (const feature of zonesGeoJSON.features) {
+                const polygon = turf.polygon(feature.geometry.coordinates);
+                if (turf.booleanPointInPolygon(point, polygon)) {
+                    return feature.properties.zone;
+                }
+            }
+            return "Donate";
+        }
+
         const form = document.getElementById('parkingForm');
         const hoursInput = document.getElementById('hours');
         const hoursDisplay = document.getElementById('hoursDisplay');
@@ -1282,6 +1330,35 @@ func generateHTML(zones []string) string {
             if (e.target === modal) {
                 closeModal();
             }
+        });
+
+        // Geolocation-based zone auto-selection
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!navigator.geolocation) return;
+            const zoneSelect = document.getElementById('zone');
+            const originalText = zoneSelect.options[0].text;
+            zoneSelect.options[0].text = 'Detecting location...';
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const zone = findZoneByLocation(position.coords.latitude, position.coords.longitude);
+                    // Find the option with this zone value and select it
+                    for (let i = 0; i < zoneSelect.options.length; i++) {
+                        if (zoneSelect.options[i].value === zone) {
+                            zoneSelect.selectedIndex = i;
+                            zoneSelect.dispatchEvent(new Event('change'));
+                            break;
+                        }
+                    }
+                    // Restore placeholder text in case user resets
+                    zoneSelect.options[0].text = originalText;
+                },
+                () => {
+                    // User denied or error — restore and let them select manually
+                    zoneSelect.options[0].text = originalText;
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
         });
     </script>
 </body>
