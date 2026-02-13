@@ -934,7 +934,8 @@ func generateHTML(zones []string) string {
 </head>
 <body>
     <div class="container">
-        <h1>⚡⚡⚡ Lightning Parking</h1>
+		<h1>⚡⚡⚡</h1>
+        <h1>Lightning Parking</h1>
         <p class="subtitle">Pay for your parking in Ljubljana with Bitcoin</p>
 
         <form id="parkingForm">
