@@ -435,11 +435,12 @@ func generateHTML(zones []string) string {
 	zoneOptions := ""
 	for _, zone := range zones {
 		zoneInfo := parking.Zones[zone]
-		zoneOptions += fmt.Sprintf(`<option value="%s">%s - €%.2f/hr (max %vh)</option>`,
+		// Build option - no escaping needed since it's passed as argument, not part of template
+		zoneOptions += fmt.Sprintf(`<option value="%s">%s - €%.2f/hr (max %dh)</option>`,
 			zone, zone, zoneInfo.Price, int(zoneInfo.MaxTime))
 	}
 
-	return fmt.Sprintf(`<!DOCTYPE html>
+	html := fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -454,127 +455,231 @@ func generateHTML(zones []string) string {
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%);
+            background: linear-gradient(135deg, #1e3c72 0%%, #2a5298 50%%, #7e22ce 100%%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
             padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%%, transparent 70%%);
+            border-radius: 50%%;
+            top: -100px;
+            right: -100px;
+            animation: float 20s infinite ease-in-out;
+        }
+
+        body::after {
+            content: '';
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%%, transparent 70%%);
+            border-radius: 50%%;
+            bottom: -80px;
+            left: -80px;
+            animation: float 15s infinite ease-in-out reverse;
+        }
+
+        @keyframes float {
+            0%%, 100%% { transform: translate(0, 0) scale(1); }
+            50%% { transform: translate(30px, 30px) scale(1.1); }
         }
 
         .container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            padding: 40px;
-            max-width: 500px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 24px;
+            box-shadow: 0 24px 48px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
+            padding: 48px;
+            max-width: 480px;
             width: 100%%;
+            position: relative;
+            z-index: 1;
+            animation: slideUp 0.6s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         h1 {
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 28px;
+            color: #1a202c;
+            margin-bottom: 8px;
+            font-size: 32px;
             text-align: center;
+            font-weight: 700;
+            letter-spacing: -0.5px;
         }
 
         .subtitle {
-            color: #666;
+            color: #64748b;
             text-align: center;
-            margin-bottom: 30px;
-            font-size: 14px;
+            margin-bottom: 36px;
+            font-size: 15px;
+            font-weight: 500;
         }
 
         .form-group {
-            margin-bottom: 25px;
+            margin-bottom: 24px;
         }
 
         label {
             display: block;
-            margin-bottom: 8px;
-            color: #333;
+            margin-bottom: 10px;
+            color: #334155;
             font-weight: 600;
             font-size: 14px;
+            letter-spacing: 0.2px;
+            text-transform: uppercase;
         }
 
+        /* Unified input style for all three inputs */
         input[type="text"],
-        select {
+        select,
+        .hours-selector {
             width: 100%%;
-            padding: 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
+            padding: 16px 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 16px;
             font-size: 16px;
-            transition: border-color 0.3s;
+            font-weight: 500;
+            color: #1a202c;
+            background: white;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            appearance: none;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
 
         input[type="text"]:focus,
-        select:focus {
+        select:focus,
+        .hours-selector:focus-within {
             outline: none;
-            border-color: #667eea;
+            border-color: #7e22ce;
+            box-shadow: 0 0 0 3px rgba(126, 34, 206, 0.1), 0 4px 12px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
         }
 
-        .number-input {
+        input[type="text"]:hover,
+        select:hover,
+        .hours-selector:hover {
+            border-color: #cbd5e1;
+        }
+
+        /* Custom dropdown arrow for select - SVG arrow icon */
+        select {
+            background-image: url("data:image/svg+xml,%%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%%231a202c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%%3E%%3Cpolyline points='6 9 12 15 18 9'%%3E%%3C/polyline%%3E%%3C/svg%%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            background-size: 20px;
+            padding-right: 48px;
+            cursor: pointer;
+        }
+
+        /* Hours selector with the same style as other inputs */
+        .hours-selector {
             display: flex;
             align-items: center;
-            gap: 15px;
+            justify-content: space-between;
+            cursor: default;
+            padding: 12px 16px;
         }
 
-        .number-input button {
-            width: 45px;
-            height: 45px;
-            border: 2px solid #667eea;
-            background: white;
-            color: #667eea;
-            border-radius: 10px;
+        .hours-selector button {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: linear-gradient(135deg, #7e22ce 0%%, #a855f7 100%%);
+            color: white;
+            border-radius: 12px;
             font-size: 20px;
             font-weight: bold;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(126, 34, 206, 0.3);
         }
 
-        .number-input button:hover:not(:disabled) {
-            background: #667eea;
-            color: white;
+        .hours-selector button:hover:not(:disabled) {
+            background: linear-gradient(135deg, #6b21a8 0%%, #9333ea 100%%);
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(126, 34, 206, 0.4);
         }
 
-        .number-input button:disabled {
-            opacity: 0.3;
+        .hours-selector button:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+
+        .hours-selector button:disabled {
+            opacity: 0.4;
             cursor: not-allowed;
+            background: #94a3b8;
+            box-shadow: none;
         }
 
-        .number-input input {
+        .hours-selector .hours-display {
             flex: 1;
             text-align: center;
-            font-weight: bold;
-            font-size: 18px;
+            font-size: 20px;
+            font-weight: 700;
+            color: #1a202c;
+            letter-spacing: -0.5px;
+        }
+
+        .hours-selector input[type="number"] {
+            display: none;
         }
 
         .submit-btn {
             width: 100%%;
-            padding: 15px;
-            background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%);
+            padding: 18px;
+            background: linear-gradient(135deg, #7e22ce 0%%, #a855f7 50%%, #ec4899 100%%);
             color: white;
             border: none;
-            border-radius: 10px;
-            font-size: 18px;
-            font-weight: bold;
+            border-radius: 16px;
+            font-size: 17px;
+            font-weight: 700;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 8px 24px rgba(126, 34, 206, 0.35);
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+            margin-top: 12px;
         }
 
         .submit-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+            transform: translateY(-3px);
+            box-shadow: 0 12px 32px rgba(126, 34, 206, 0.5);
+            background: linear-gradient(135deg, #6b21a8 0%%, #9333ea 50%%, #db2777 100%%);
         }
 
         .submit-btn:active {
-            transform: translateY(0);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(126, 34, 206, 0.4);
         }
 
         .submit-btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
             transform: none;
+            box-shadow: 0 4px 12px rgba(126, 34, 206, 0.2);
         }
 
         /* Modal styles */
@@ -586,8 +691,9 @@ func generateHTML(zones []string) string {
             top: 0;
             width: 100%%;
             height: 100%%;
-            background-color: rgba(0, 0, 0, 0.7);
-            animation: fadeIn 0.3s;
+            background-color: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px);
+            animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         @keyframes fadeIn {
@@ -596,98 +702,122 @@ func generateHTML(zones []string) string {
         }
 
         .modal-content {
-            background-color: white;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%%, rgba(255, 255, 255, 0.95) 100%%);
+            backdrop-filter: blur(10px);
             margin: 5%% auto;
-            padding: 30px;
-            border-radius: 20px;
-            max-width: 500px;
+            padding: 36px;
+            border-radius: 24px;
+            max-width: 520px;
             width: 90%%;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            animation: slideIn 0.3s;
+            box-shadow: 0 32px 64px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
+            animation: slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         @keyframes slideIn {
             from {
-                transform: translateY(-50px);
+                transform: translateY(-60px) scale(0.95);
                 opacity: 0;
             }
             to {
-                transform: translateY(0);
+                transform: translateY(0) scale(1);
                 opacity: 1;
             }
         }
 
         .modal h2 {
-            color: #333;
-            margin-bottom: 20px;
+            color: #1a202c;
+            margin-bottom: 24px;
             text-align: center;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
         }
 
         .invoice-container {
-            background: #f5f5f5;
+            background: linear-gradient(135deg, #f8fafc 0%%, #f1f5f9 100%%);
             padding: 20px;
-            border-radius: 10px;
+            border-radius: 16px;
             margin: 20px 0;
             word-break: break-all;
+            border: 2px solid #e2e8f0;
         }
 
         .invoice-details {
-            margin-bottom: 15px;
-            padding: 15px;
-            background: white;
-            border-radius: 10px;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: linear-gradient(135deg, #ffffff 0%%, #fefefe 100%%);
+            border-radius: 16px;
+            border: 2px solid #e2e8f0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
 
         .invoice-details p {
-            margin: 8px 0;
-            color: #666;
+            margin: 10px 0;
+            color: #64748b;
+            font-size: 15px;
         }
 
         .invoice-details strong {
-            color: #333;
+            color: #1a202c;
+            font-weight: 600;
         }
 
         .qr-code {
             text-align: center;
-            margin: 20px 0;
+            margin: 24px 0;
+            padding: 20px;
+            background: white;
+            border-radius: 16px;
+            border: 2px solid #e2e8f0;
         }
 
         .qr-code img {
             max-width: 256px;
             width: 100%%;
+            border-radius: 12px;
         }
 
         .copy-btn {
             width: 100%%;
-            padding: 12px;
-            background: #667eea;
+            padding: 14px;
+            background: linear-gradient(135deg, #7e22ce 0%%, #a855f7 100%%);
             color: white;
             border: none;
-            border-radius: 10px;
-            font-size: 14px;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
             cursor: pointer;
-            margin-top: 10px;
+            margin-top: 12px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 12px rgba(126, 34, 206, 0.3);
         }
 
         .copy-btn:hover {
-            background: #5568d3;
+            background: linear-gradient(135deg, #6b21a8 0%%, #9333ea 100%%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(126, 34, 206, 0.4);
+        }
+
+        .copy-btn:active {
+            transform: translateY(0);
         }
 
         .loading {
             text-align: center;
-            color: #667eea;
-            font-weight: bold;
-            margin: 15px 0;
+            color: #7e22ce;
+            font-weight: 600;
+            margin: 20px 0;
+            font-size: 15px;
         }
 
         .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
+            border: 3px solid #e2e8f0;
+            border-top: 3px solid #7e22ce;
             border-radius: 50%%;
-            width: 40px;
-            height: 40px;
+            width: 48px;
+            height: 48px;
             animation: spin 1s linear infinite;
-            margin: 20px auto;
+            margin: 24px auto;
         }
 
         @keyframes spin {
@@ -696,45 +826,117 @@ func generateHTML(zones []string) string {
         }
 
         .success-message {
-            background: #4CAF50;
+            background: linear-gradient(135deg, #10b981 0%%, #059669 100%%);
             color: white;
-            padding: 20px;
-            border-radius: 10px;
+            padding: 24px;
+            border-radius: 16px;
             text-align: center;
             margin: 20px 0;
+            box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
+        }
+
+        .success-message h3 {
+            font-size: 22px;
+            margin-bottom: 8px;
+        }
+
+        .success-message p {
+            font-size: 15px;
+            opacity: 0.95;
         }
 
         .error {
-            color: #f44336;
+            color: #ef4444;
             font-size: 14px;
-            margin-top: 10px;
+            margin-top: 12px;
             text-align: center;
+            font-weight: 500;
         }
 
         .footer {
-            margin-top: 25px;
-            padding-top: 20px;
-            border-top: 1px solid #e0e0e0;
+            margin-top: 32px;
+            padding-top: 24px;
+            border-top: 2px solid #e2e8f0;
             text-align: center;
-            font-size: 12px;
-            color: #888;
+            font-size: 13px;
+            color: #94a3b8;
         }
 
         .footer a {
-            color: #667eea;
+            color: #7e22ce;
             text-decoration: none;
-            margin: 0 10px;
+            margin: 0 12px;
+            font-weight: 500;
+            transition: color 0.2s;
         }
 
         .footer a:hover {
+            color: #6b21a8;
             text-decoration: underline;
+        }
+
+        /* Responsive design for mobile */
+        @media (max-width: 768px) {
+            .container {
+                padding: 32px 24px;
+                border-radius: 20px;
+            }
+
+            h1 {
+                font-size: 28px;
+            }
+
+            .subtitle {
+                font-size: 14px;
+            }
+
+            input[type="text"],
+            select,
+            .hours-selector {
+                padding: 14px 18px;
+                font-size: 15px;
+            }
+
+            .hours-selector button {
+                width: 36px;
+                height: 36px;
+                font-size: 18px;
+            }
+
+            .hours-selector .hours-display {
+                font-size: 18px;
+            }
+
+            .submit-btn {
+                padding: 16px;
+                font-size: 16px;
+            }
+
+            .modal-content {
+                padding: 28px 20px;
+                margin: 10%% auto;
+            }
+
+            .modal h2 {
+                font-size: 24px;
+            }
+
+            .footer {
+                font-size: 12px;
+            }
+
+            body::before,
+            body::after {
+                display: none;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>⚡ Lightning Parking</h1>
-        <p class="subtitle">Pay for your parking with Bitcoin</p>
+		<h1>⚡⚡⚡</h1>
+        <h1>Lightning Parking</h1>
+        <p class="subtitle">Pay for your parking in Ljubljana with Bitcoin</p>
 
         <form id="parkingForm">
             <div class="form-group">
@@ -752,8 +954,9 @@ func generateHTML(zones []string) string {
 
             <div class="form-group">
                 <label for="hours">Hours</label>
-                <div class="number-input">
+                <div class="hours-selector">
                     <button type="button" id="decreaseHours">−</button>
+                    <div class="hours-display" id="hoursDisplay">1</div>
                     <input type="number" id="hours" name="hours" value="1" min="1" max="24" readonly>
                     <button type="button" id="increaseHours">+</button>
                 </div>
@@ -790,6 +993,7 @@ func generateHTML(zones []string) string {
     <script>
         const form = document.getElementById('parkingForm');
         const hoursInput = document.getElementById('hours');
+        const hoursDisplay = document.getElementById('hoursDisplay');
         const decreaseBtn = document.getElementById('decreaseHours');
         const increaseBtn = document.getElementById('increaseHours');
         const modal = document.getElementById('invoiceModal');
@@ -816,6 +1020,7 @@ func generateHTML(zones []string) string {
             const current = parseInt(hoursInput.value);
             if (current > 1) {
                 hoursInput.value = current - 1;
+                hoursDisplay.textContent = current - 1;
             }
         });
 
@@ -823,6 +1028,7 @@ func generateHTML(zones []string) string {
             const current = parseInt(hoursInput.value);
             if (current < 24) {
                 hoursInput.value = current + 1;
+                hoursDisplay.textContent = current + 1;
             }
         });
 
@@ -967,6 +1173,7 @@ func generateHTML(zones []string) string {
                 modal.style.display = 'none';
                 form.reset();
                 hoursInput.value = 1;
+                hoursDisplay.textContent = 1;
                 document.getElementById('paymentStatus').style.display = 'block';
                 document.getElementById('paymentStatus').innerHTML =
                     '<div class="spinner"></div><p>Waiting for payment...</p>';
@@ -987,6 +1194,8 @@ func generateHTML(zones []string) string {
     </script>
 </body>
 </html>`, zoneOptions)
+
+	return html
 }
 
 func generateLegalPageCSS() string {
