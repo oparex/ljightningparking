@@ -3,9 +3,10 @@ package parking
 import "math"
 
 const (
-	zone1 = 1.7
-	zone2 = 1.0
-	zone3 = 0.7
+	zone1   = 1.7
+	zone2   = 1.0
+	zone3   = 0.7
+	donate  = 1.0
 )
 
 type Zone struct {
@@ -89,5 +90,6 @@ var Zones = map[string]Zone{
 	"DR":  {"DR", zone3, 10},
 	"PO":  {"PO", zone3, 10},
 	"GR":  {"GR", zone3, 10},
-	"KO":  {"KO", zone3, 10},
+	"KO":     {"KO", zone3, 10},
+	"Donate": {"Donate", donate, 1},
 }

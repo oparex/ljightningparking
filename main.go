@@ -198,6 +198,13 @@ func handleCheckPayment(c *gin.Context) {
 		hours := c.Query("hours")
 		amount := c.Query("amount")
 
+		// Skip SMS for donate zone
+		if zone == "Donate" {
+			log.Printf("Donation received from plate %s", plate)
+			c.JSON(http.StatusOK, gin.H{"paid": true, "donate": true})
+			return
+		}
+
 		smsSentAt := time.Now().UTC().Format(time.RFC3339)
 
 		if plate != "" && zone != "" && hours != "" {
@@ -432,8 +439,14 @@ func getEnv(key, defaultValue string) string {
 }
 
 func generateHTML(zones []string) string {
-	zoneOptions := ""
+	// Add Donate option first with a special label
+	donateInfo := parking.Zones["Donate"]
+	zoneOptions := fmt.Sprintf(`<option value="Donate">Not in Ljubljana? Donate! - €%.2f</option>`,
+		donateInfo.Price)
 	for _, zone := range zones {
+		if zone == "Donate" {
+			continue
+		}
 		zoneInfo := parking.Zones[zone]
 		// Build option - no escaping needed since it's passed as argument, not part of template
 		zoneOptions += fmt.Sprintf(`<option value="%s">%s - €%.2f/hr (max %dh)</option>`,
@@ -1179,9 +1192,13 @@ func generateHTML(zones []string) string {
 
                     if (data.paid) {
                         clearInterval(checkPaymentInterval);
-                        document.getElementById('paymentStatus').innerHTML =
-                            '<div class="spinner"></div><p>Payment received! Confirming parking...</p>';
-                        startSMSCheck(currentParkingData.plate, data.sms_sent_at);
+                        if (data.donate) {
+                            showSuccess('Thank you for your donation!');
+                        } else {
+                            document.getElementById('paymentStatus').innerHTML =
+                                '<div class="spinner"></div><p>Payment received! Confirming parking...</p>';
+                            startSMSCheck(currentParkingData.plate, data.sms_sent_at);
+                        }
                     }
                 } catch (error) {
                     console.error('Error checking payment:', error);
