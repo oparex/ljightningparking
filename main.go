@@ -462,7 +462,6 @@ func generateHTML(zones []string) string {
             align-items: center;
             padding: 20px;
             position: relative;
-            overflow: hidden;
         }
 
         body::before {
@@ -694,6 +693,8 @@ func generateHTML(zones []string) string {
             background-color: rgba(0, 0, 0, 0.75);
             backdrop-filter: blur(8px);
             animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         @keyframes fadeIn {
@@ -711,6 +712,30 @@ func generateHTML(zones []string) string {
             width: 90%%;
             box-shadow: 0 32px 64px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
             animation: slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 12px;
+            right: 16px;
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: #94a3b8;
+            cursor: pointer;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%%;
+            transition: all 0.2s;
+        }
+
+        .modal-close:hover {
+            background: #f1f5f9;
+            color: #1a202c;
         }
 
         @keyframes slideIn {
@@ -877,24 +902,45 @@ func generateHTML(zones []string) string {
 
         /* Responsive design for mobile */
         @media (max-width: 768px) {
+            body {
+                align-items: flex-start;
+                padding: 32px 12px;
+            }
+
             .container {
-                padding: 32px 24px;
+                padding: 28px 22px;
                 border-radius: 20px;
             }
 
             h1 {
-                font-size: 28px;
+                font-size: 26px;
+                margin-bottom: 6px;
             }
 
             .subtitle {
                 font-size: 14px;
+                margin-bottom: 28px;
+            }
+
+            .form-group {
+                margin-bottom: 20px;
+            }
+
+            label {
+                margin-bottom: 8px;
+                font-size: 13px;
             }
 
             input[type="text"],
             select,
             .hours-selector {
-                padding: 14px 18px;
+                padding: 13px 16px;
                 font-size: 15px;
+                border-radius: 14px;
+            }
+
+            .hours-selector {
+                padding: 10px 14px;
             }
 
             .hours-selector button {
@@ -908,8 +954,14 @@ func generateHTML(zones []string) string {
             }
 
             .submit-btn {
-                padding: 16px;
+                padding: 15px;
                 font-size: 16px;
+                margin-top: 10px;
+            }
+
+            .footer {
+                margin-top: 24px;
+                padding-top: 18px;
             }
 
             .modal-content {
@@ -975,6 +1027,7 @@ func generateHTML(zones []string) string {
     <!-- Invoice Modal -->
     <div id="invoiceModal" class="modal">
         <div class="modal-content">
+            <button class="modal-close" id="modalClose" title="Close">&times;</button>
             <h2>⚡ Pay with Lightning</h2>
             <div class="invoice-details" id="invoiceDetails"></div>
             <div class="qr-code" id="qrCode"></div>
@@ -1181,14 +1234,21 @@ func generateHTML(zones []string) string {
             }, 5000);
         }
 
+        function closeModal() {
+            if (confirm('Are you sure you want to cancel this payment?')) {
+                clearInterval(checkPaymentInterval);
+                clearInterval(checkSMSInterval);
+                modal.style.display = 'none';
+            }
+        }
+
+        // Close modal with X button
+        document.getElementById('modalClose').addEventListener('click', closeModal);
+
         // Close modal when clicking outside
         window.addEventListener('click', (e) => {
             if (e.target === modal) {
-                if (confirm('Are you sure you want to cancel this payment?')) {
-                    clearInterval(checkPaymentInterval);
-                    clearInterval(checkSMSInterval);
-                    modal.style.display = 'none';
-                }
+                closeModal();
             }
         });
     </script>
