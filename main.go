@@ -1008,7 +1008,7 @@ func generateHTML(zones []string) string {
         <h1>Lightning Parking</h1>
         <p class="subtitle">Pay for your parking in Ljubljana with Bitcoin</p>
 
-        <form id="parkingForm">
+        <form id="parkingForm" novalidate>
             <div class="form-group">
                 <label for="plate">License Plate</label>
                 <input type="text" id="plate" name="plate" placeholder="Enter your license plate">
