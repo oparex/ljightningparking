@@ -446,7 +446,7 @@ func getEnv(key, defaultValue string) string {
 func generateHTML(zones []string) string {
 	// Add Donate option first with a special label
 	donateInfo := parking.Zones["Donate"]
-	zoneOptions := fmt.Sprintf(`<option value="Donate">Not in Ljubljana? Donate! - €%.2f</option>`,
+	zoneOptions := fmt.Sprintf(`<option value="Donate">Not in Ljubljana? Donate! - €%.2f/unit</option>`,
 		donateInfo.Price)
 	for _, zone := range zones {
 		if zone == "Donate" {
