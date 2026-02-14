@@ -566,6 +566,64 @@ func generateHTML(zones []string) string {
             text-transform: uppercase;
         }
 
+        .remember-plate {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            margin-top: 8px;
+            cursor: pointer;
+            text-transform: none;
+            font-weight: 500;
+            font-size: 13px;
+            color: #94a3b8;
+            letter-spacing: 0;
+            gap: 8px;
+            transition: color 0.2s;
+        }
+
+        .remember-plate:hover {
+            color: #64748b;
+        }
+
+        .remember-plate input[type="checkbox"] {
+            display: none;
+        }
+
+        .remember-plate .toggle {
+            width: 36px;
+            height: 20px;
+            background: #cbd5e1;
+            border-radius: 10px;
+            position: relative;
+            transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            flex-shrink: 0;
+        }
+
+        .remember-plate .toggle::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            background: white;
+            border-radius: 50%%;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+        }
+
+        .remember-plate input[type="checkbox"]:checked + .toggle {
+            background: #7e22ce;
+        }
+
+        .remember-plate input[type="checkbox"]:checked + .toggle::after {
+            transform: translateX(16px);
+        }
+
+        .remember-plate input[type="checkbox"]:checked ~ span {
+            color: #7e22ce;
+        }
+
         /* Unified input style for all three inputs */
         input[type="text"],
         select,
@@ -1012,6 +1070,11 @@ func generateHTML(zones []string) string {
             <div class="form-group">
                 <label for="plate">License Plate</label>
                 <input type="text" id="plate" name="plate" placeholder="Enter your license plate">
+                <label class="remember-plate">
+                    <span>Remember my plate</span>
+                    <input type="checkbox" id="rememberPlate">
+                    <span class="toggle"></span>
+                </label>
             </div>
 
             <div class="form-group">
@@ -1086,12 +1149,29 @@ func generateHTML(zones []string) string {
         const modal = document.getElementById('invoiceModal');
         const submitBtn = document.getElementById('submitBtn');
         const formError = document.getElementById('formError');
+        const plateInput = document.getElementById('plate');
+        const rememberPlate = document.getElementById('rememberPlate');
 
         let checkPaymentInterval;
         let checkSMSInterval;
         let currentPaymentHash;
         let currentParkingData;
         let wakeupSent = false;
+
+        // Restore saved plate if user previously opted in
+        if (localStorage.getItem('rememberPlate') === 'true') {
+            const savedPlate = localStorage.getItem('plate');
+            if (savedPlate) plateInput.value = savedPlate;
+            rememberPlate.checked = true;
+        }
+
+        // Clear stored plate when checkbox is unchecked
+        rememberPlate.addEventListener('change', () => {
+            if (!rememberPlate.checked) {
+                localStorage.removeItem('plate');
+                localStorage.removeItem('rememberPlate');
+            }
+        });
 
         // Wake up SMS server once all fields are filled (skip for Donate zone)
         function triggerWakeup() {
@@ -1258,6 +1338,11 @@ func generateHTML(zones []string) string {
         }
 
         function showSuccess(smsContent) {
+            // Save plate if user opted in
+            if (rememberPlate.checked) {
+                localStorage.setItem('plate', plateInput.value.trim());
+                localStorage.setItem('rememberPlate', 'true');
+            }
             document.getElementById('paymentStatus').style.display = 'none';
             const successEl = document.getElementById('successMessage');
             let html = '<h3>✅ Parking Confirmed!</h3>';
@@ -1421,7 +1506,7 @@ func generatePrivacyHTML() string {
     <div class="container">
         <a href="/" class="back-link">&larr; Back to Lightning Parking</a>
         <h1>Privacy Policy</h1>
-        <p class="last-updated">Last updated: February 2025</p>
+        <p class="last-updated">Last updated: February 2026</p>
 
         <h2>1. Introduction</h2>
         <p>Lightning Parking ("we", "us", "our") operates a parking payment service that allows users to pay for parking using the Bitcoin Lightning Network. We are committed to protecting your personal data in accordance with the EU General Data Protection Regulation (GDPR) (Regulation (EU) 2016/679).</p>
@@ -1451,8 +1536,14 @@ func generatePrivacyHTML() string {
         <h2>6. Data Retention</h2>
         <p>We do not operate a persistent database. Parking session data is transmitted to the parking authority in real time and is not stored on our servers beyond the duration of your active session. Payment records may be retained by the Lightning Network payment provider (LNbits) according to their own retention policies.</p>
 
-        <h2>7. Cookies</h2>
-        <p>This website does not use cookies, tracking pixels, or any other tracking technologies. No data is stored on your device.</p>
+        <h2>7. Local Storage &amp; Cookies</h2>
+        <p>This website does not use cookies or tracking technologies. However, if you enable the &ldquo;Remember my plate&rdquo; option, your license plate number is saved in your browser&rsquo;s local storage (localStorage) for your convenience on future visits. This data:</p>
+        <ul>
+            <li>Is stored <strong>only on your device</strong> &ndash; it is never transmitted to or stored on our servers.</li>
+            <li>Is saved <strong>only with your explicit consent</strong> (by toggling the option on). The legal basis is consent (Article 6(1)(a) GDPR).</li>
+            <li>Can be <strong>removed at any time</strong> by toggling the option off, which immediately deletes the stored plate from your device.</li>
+            <li>Can also be cleared by using your browser&rsquo;s &ldquo;Clear site data&rdquo; function.</li>
+        </ul>
 
         <h2>8. Your Rights Under GDPR</h2>
         <p>Under the GDPR, you have the following rights regarding your personal data:</p>
