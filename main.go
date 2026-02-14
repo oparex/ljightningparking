@@ -579,6 +579,7 @@ func generateHTML(zones []string) string {
             letter-spacing: 0;
             gap: 8px;
             transition: color 0.2s;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .remember-plate:hover {
