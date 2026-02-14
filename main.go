@@ -1546,7 +1546,17 @@ func generatePrivacyHTML() string {
             <li>Can also be cleared by using your browser&rsquo;s &ldquo;Clear site data&rdquo; function.</li>
         </ul>
 
-        <h2>8. Your Rights Under GDPR</h2>
+        <h2>8. Location Data</h2>
+        <p>This website may request access to your device&rsquo;s location (via your browser&rsquo;s Geolocation API) to automatically detect which parking zone you are in. It is important to understand how this works:</p>
+        <ul>
+            <li><strong>Your location is processed entirely on your device</strong> &ndash; your GPS coordinates are used locally in your browser to match your position against known parking zone boundaries. Your location is <strong>never transmitted to our servers</strong> or any third party.</li>
+            <li><strong>No location data is stored</strong> &ndash; your coordinates are used once for zone detection and are not saved anywhere, neither on your device nor on our servers.</li>
+            <li><strong>Location access is optional</strong> &ndash; if you deny the browser&rsquo;s location permission prompt, the service will continue to work normally and you can select your parking zone manually from the dropdown.</li>
+            <li><strong>Browser-level control</strong> &ndash; you can revoke location permission at any time through your browser&rsquo;s site settings.</li>
+        </ul>
+        <p>To be absolutely clear: <strong>we have no ability to see, collect, or store your geographic location</strong>. The zone detection happens entirely within your browser using JavaScript, and only the parking zone name you select (not your coordinates) is ever sent to our server.</p>
+
+        <h2>9. Your Rights Under GDPR</h2>
         <p>Under the GDPR, you have the following rights regarding your personal data:</p>
         <ul>
             <li><strong>Right of access</strong> &ndash; you may request a copy of the data we hold about you.</li>
@@ -1558,10 +1568,10 @@ func generatePrivacyHTML() string {
         </ul>
         <p>To exercise any of these rights, please contact us using the details provided below.</p>
 
-        <h2>9. Data Security</h2>
+        <h2>10. Data Security</h2>
         <p>We use HTTPS encryption for all communications between your browser and our servers. Payment is processed via the Bitcoin Lightning Network, which does not require you to share any traditional financial information.</p>
 
-        <h2>10. Contact</h2>
+        <h2>11. Contact</h2>
         <p>If you have any questions about this privacy policy or wish to exercise your data protection rights, please contact us at the address provided on the main website.</p>
     </div>
 </body>
