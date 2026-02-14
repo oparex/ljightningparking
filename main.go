@@ -1064,47 +1064,15 @@ func generateHTML(zones []string) string {
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
     <script>
         // GeoJSON FeatureCollection of Ljubljana parking zone polygons
-        // TODO: Add real zone polygons
-        const zonesGeoJSON = {
-            "type": "FeatureCollection",
-            "features": [
-                {
-                    "type": "Feature",
-                    "properties": { "zone": "C1" },
-                    "geometry": {
-                        "type": "Polygon",
-                        "coordinates": [[
-                            [14.4950, 46.0550],
-                            [14.5050, 46.0550],
-                            [14.5050, 46.0500],
-                            [14.4950, 46.0500],
-                            [14.4950, 46.0550]
-                        ]]
-                    }
-                },
-                {
-                    "type": "Feature",
-                    "properties": { "zone": "B2" },
-                    "geometry": {
-                        "type": "Polygon",
-                        "coordinates": [[
-                            [14.5050, 46.0550],
-                            [14.5150, 46.0550],
-                            [14.5150, 46.0500],
-                            [14.5050, 46.0500],
-                            [14.5050, 46.0550]
-                        ]]
-                    }
-                }
-            ]
-        };
+        const zonesGeoJSON = %s;
 
         function findZoneByLocation(lat, lng) {
             const point = turf.point([lng, lat]);
             for (const feature of zonesGeoJSON.features) {
+                if (!feature.properties.name) continue;
                 const polygon = turf.polygon(feature.geometry.coordinates);
                 if (turf.booleanPointInPolygon(point, polygon)) {
-                    return feature.properties.zone;
+                    return feature.properties.name;
                 }
             }
             return "Donate";
@@ -1333,7 +1301,7 @@ func generateHTML(zones []string) string {
         });
 
         // Geolocation-based zone auto-selection
-        document.addEventListener('DOMContentLoaded', () => {
+        (function() {
             if (!navigator.geolocation) return;
             const zoneSelect = document.getElementById('zone');
             const originalText = zoneSelect.options[0].text;
@@ -1359,10 +1327,10 @@ func generateHTML(zones []string) string {
                 },
                 { enableHighAccuracy: true, timeout: 10000 }
             );
-        });
+        })();
     </script>
 </body>
-</html>`, zoneOptions)
+</html>`, zoneOptions, parking.ZonesGeoJSON)
 
 	return html
 }

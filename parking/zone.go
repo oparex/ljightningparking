@@ -1,6 +1,12 @@
 package parking
 
-import "math"
+import (
+	_ "embed"
+	"math"
+)
+
+//go:embed lj-parking-zones.geojson
+var ZonesGeoJSON string
 
 const (
 	zone1   = 1.7
