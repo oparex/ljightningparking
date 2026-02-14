@@ -12,7 +12,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -143,8 +145,9 @@ func handleSubmit(c *gin.Context) {
 		return
 	}
 
-	// Validate plate (skip for Donate zone)
-	if req.Zone != "Donate" && len(req.Plate) < 2 {
+	// Sanitize and validate plate (skip for Donate zone)
+	req.Plate = sanitizePlate(req.Plate)
+	if req.Zone != "Donate" && !isValidPlate(req.Plate) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid license plate"})
 		return
 	}
@@ -388,6 +391,20 @@ func checkLNBitsPayment(paymentHash string) (bool, error) {
 	}
 
 	return checkResp.Paid, nil
+}
+
+var plateRegex = regexp.MustCompile(`^[A-Z0-9][A-Z0-9 -]{0,8}[A-Z0-9]$`)
+
+func sanitizePlate(plate string) string {
+	return strings.ToUpper(strings.TrimSpace(plate))
+}
+
+func isValidPlate(plate string) bool {
+	stripped := strings.ReplaceAll(strings.ReplaceAll(plate, " ", ""), "-", "")
+	if len(stripped) < 2 {
+		return false
+	}
+	return plateRegex.MatchString(plate)
 }
 
 func sendToParkingServer(plate, zone, hours, amount string) error {
@@ -1070,7 +1087,7 @@ func generateHTML(zones []string) string {
         <form id="parkingForm" novalidate>
             <div class="form-group">
                 <label for="plate">License Plate</label>
-                <input type="text" id="plate" name="plate" placeholder="Enter your license plate">
+                <input type="text" id="plate" name="plate" placeholder="Enter your license plate" maxlength="10" pattern="[A-Za-z0-9 -]+" autocapitalize="characters" style="text-transform: uppercase">
                 <label class="remember-plate">
                     <span>Remember my plate</span>
                     <input type="checkbox" id="rememberPlate">
@@ -1166,6 +1183,22 @@ func generateHTML(zones []string) string {
             rememberPlate.checked = true;
         }
 
+        // Real-time plate sanitization: strip invalid chars and uppercase
+        plateInput.addEventListener('input', () => {
+            const pos = plateInput.selectionStart;
+            const original = plateInput.value;
+            plateInput.value = original.toUpperCase().replace(/[^A-Z0-9 -]/g, '');
+            if (plateInput.value.length < original.length) {
+                plateInput.setSelectionRange(pos - (original.length - plateInput.value.length), pos - (original.length - plateInput.value.length));
+            }
+        });
+
+        function isValidPlate(plate) {
+            const stripped = plate.replace(/[ -]/g, '');
+            if (stripped.length < 2) return false;
+            return /^[A-Z0-9][A-Z0-9 -]{0,8}[A-Z0-9]$/.test(plate);
+        }
+
         // Clear stored plate when checkbox is unchecked
         rememberPlate.addEventListener('change', () => {
             if (!rememberPlate.checked) {
@@ -1216,8 +1249,8 @@ func generateHTML(zones []string) string {
                 hours: parseInt(hoursInput.value)
             };
 
-            if (formData.zone !== 'Donate' && formData.plate.length < 2) {
-                formError.textContent = 'Please enter a valid license plate';
+            if (formData.zone !== 'Donate' && !isValidPlate(formData.plate)) {
+                formError.textContent = 'Please enter a valid license plate (letters, numbers, spaces, hyphens only)';
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Generate Invoice';
                 return;
