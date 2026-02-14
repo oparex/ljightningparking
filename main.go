@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"ljightningparking/balance"
 	"ljightningparking/parking"
 	"ljightningparking/price"
 	"log"
@@ -93,6 +94,11 @@ func main() {
 		log.Fatal("SMS_NUMBER environment variable is required")
 	}
 
+	if err := balance.InitDB("balance.db"); err != nil {
+		log.Fatal("Failed to initialize balance database: ", err)
+	}
+	defer balance.Close()
+
 	router := gin.Default()
 	router.SetTrustedProxies(nil)
 
@@ -108,12 +114,18 @@ func main() {
 	// Check for SMS confirmation
 	router.GET("/check-sms", handleCheckSMS)
 
+	// Get current parking account balance
+	router.GET("/balance", handleBalance)
+
 	// Wake up SMS server GSM module
 	router.POST("/wakeup", handleWakeup)
 
 	// Legal pages
 	router.GET("/privacy", handlePrivacyPage)
 	router.GET("/terms", handleTermsPage)
+
+	// Start periodic balance check
+	go runPeriodicBalanceCheck()
 
 	log.Printf("Starting server on port %d", *port)
 	router.Run(fmt.Sprintf(":%d", *port))
@@ -154,6 +166,20 @@ func handleSubmit(c *gin.Context) {
 
 	// Calculate parking fee in euros
 	feeEuros := zone.GetParkingFee(req.Hours)
+
+	// Server-side balance check for non-Donate zones
+	if req.Zone != "Donate" {
+		bal, err := balance.GetLastBalance()
+		if err != nil {
+			log.Printf("Failed to check balance: %v", err)
+		} else if bal >= 0 && bal < feeEuros {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "Insufficient parking account balance",
+				"balance": bal,
+			})
+			return
+		}
+	}
 
 	// Convert to satoshis
 	feeSatoshis := price.EuroToSatoshis(feeEuros)
@@ -247,11 +273,44 @@ func handleCheckSMS(c *gin.Context) {
 		return
 	}
 
-	if len(results) > 0 {
-		c.JSON(http.StatusOK, gin.H{"found": true, "content": results[0].Content})
-	} else {
+	if len(results) == 0 {
 		c.JSON(http.StatusOK, gin.H{"found": false})
+		return
 	}
+
+	content := results[0].Content
+
+	// Try to parse as success SMS
+	if validUntil, _, bal, ok := balance.ParseSuccessSMS(content); ok {
+		if err := balance.InsertBalance(bal, "sms_success"); err != nil {
+			log.Printf("Failed to insert balance: %v", err)
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"found":       true,
+			"success":     true,
+			"valid_until": validUntil,
+			"balance":     bal,
+			"content":     content,
+		})
+		return
+	}
+
+	// Try to parse as rejection SMS
+	if bal, ok := balance.ParseRejectionSMS(content); ok {
+		if err := balance.InsertBalance(bal, "sms_rejection"); err != nil {
+			log.Printf("Failed to insert balance: %v", err)
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"found":   true,
+			"success": false,
+			"balance": bal,
+			"content": content,
+		})
+		return
+	}
+
+	// Unknown SMS format — return as-is
+	c.JSON(http.StatusOK, gin.H{"found": true, "content": content})
 }
 
 func handleWakeup(c *gin.Context) {
@@ -265,6 +324,123 @@ func handleWakeup(c *gin.Context) {
 	}()
 
 	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func handleBalance(c *gin.Context) {
+	bal, err := balance.GetLastBalance()
+	if err != nil {
+		log.Printf("Failed to get balance: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get balance"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"balance": bal,
+		"known":   bal >= 0,
+	})
+}
+
+const balanceMaxAge = 3 * 24 * time.Hour
+
+// runPeriodicBalanceCheck checks on startup and every 12 hours whether the
+// balance is stale (>3 days old). If so, it sends a "Stanje" SMS to the
+// parking authority and polls for the response to update our balance.
+func runPeriodicBalanceCheck() {
+	// Check immediately on startup
+	checkAndRefreshBalance()
+
+	ticker := time.NewTicker(12 * time.Hour)
+	defer ticker.Stop()
+	for range ticker.C {
+		checkAndRefreshBalance()
+	}
+}
+
+func checkAndRefreshBalance() {
+	stale, err := balance.IsBalanceStale(balanceMaxAge)
+	if err != nil {
+		log.Printf("Balance staleness check failed: %v", err)
+		return
+	}
+	if !stale {
+		return
+	}
+
+	log.Printf("Balance is stale, sending Stanje inquiry SMS")
+
+	// Wake up GSM module first
+	if err := wakeupSMSServer(); err != nil {
+		log.Printf("Failed to wake up SMS server for balance check: %v", err)
+	}
+	time.Sleep(5 * time.Second)
+
+	sentAt := time.Now().UTC().Format(time.RFC3339)
+
+	// Send "Stanje" SMS
+	data := SMSRequest{
+		Number:  config.SMSNumber,
+		Content: "Stanje",
+	}
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		log.Printf("Failed to marshal balance check SMS: %v", err)
+		return
+	}
+
+	req, err := http.NewRequest("POST", config.SMSServer+"/send", bytes.NewBuffer(jsonData))
+	if err != nil {
+		log.Printf("Failed to create balance check SMS request: %v", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if config.CallbackAPIKey != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", config.CallbackAPIKey))
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("Failed to send balance check SMS: %v", err)
+		return
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		log.Printf("Balance check SMS send returned status %s", resp.Status)
+		return
+	}
+
+	log.Printf("Balance inquiry SMS sent, polling for response...")
+
+	// Poll for the response SMS (up to 2 minutes)
+	for i := 0; i < 20; i++ {
+		time.Sleep(6 * time.Second)
+
+		results, err := searchReceivedSMS("Stanje na SMS Parking racunu", sentAt)
+		if err != nil {
+			log.Printf("Failed to search for balance response SMS: %v", err)
+			continue
+		}
+
+		if len(results) == 0 {
+			continue
+		}
+
+		bal, ok := balance.ParseBalanceCheckSMS(results[0].Content)
+		if !ok {
+			log.Printf("Failed to parse balance check SMS response: %s", results[0].Content)
+			return
+		}
+
+		if err := balance.InsertBalance(bal, "sms_inquiry"); err != nil {
+			log.Printf("Failed to insert balance from inquiry: %v", err)
+			return
+		}
+
+		log.Printf("Balance updated from inquiry: %.2f EUR", bal)
+		return
+	}
+
+	log.Printf("Timed out waiting for balance inquiry SMS response")
 }
 
 func wakeupSMSServer() error {
@@ -964,6 +1140,26 @@ func generateHTML(zones []string) string {
             opacity: 0.95;
         }
 
+        .rejection-message {
+            background: linear-gradient(135deg, #f97316 0%%, #ea580c 100%%);
+            color: white;
+            padding: 24px;
+            border-radius: 16px;
+            text-align: center;
+            margin: 20px 0;
+            box-shadow: 0 8px 24px rgba(249, 115, 22, 0.3);
+        }
+
+        .rejection-message h3 {
+            font-size: 22px;
+            margin-bottom: 8px;
+        }
+
+        .rejection-message p {
+            font-size: 15px;
+            opacity: 0.95;
+        }
+
         .error {
             color: #ef4444;
             font-size: 14px;
@@ -1114,6 +1310,7 @@ func generateHTML(zones []string) string {
             </div>
 
             <button type="submit" class="submit-btn" id="submitBtn">Generate Invoice</button>
+            <div id="balanceIndicator" style="display:none; text-align:center; margin-top:12px; font-size:14px; font-weight:600; color:#64748b;"></div>
             <div id="formError" class="error"></div>
         </form>
 
@@ -1138,6 +1335,8 @@ func generateHTML(zones []string) string {
             <div id="successMessage" style="display: none;" class="success-message">
                 <h3>✅ Payment Successful!</h3>
                 <p>Your parking has been activated.</p>
+            </div>
+            <div id="rejectionMessage" style="display: none;" class="rejection-message">
             </div>
         </div>
     </div>
@@ -1175,6 +1374,21 @@ func generateHTML(zones []string) string {
         let currentPaymentHash;
         let currentParkingData;
         let wakeupSent = false;
+        let knownBalance = -1;
+        let balanceKnown = false;
+
+        // Fetch current parking account balance
+        (async function() {
+            try {
+                const resp = await fetch('/balance');
+                const data = await resp.json();
+                if (data.known) {
+                    knownBalance = data.balance;
+                    balanceKnown = true;
+                    updateBalanceDisplay();
+                }
+            } catch(e) { console.error('Failed to fetch balance:', e); }
+        })();
 
         // Restore saved plate if user previously opted in
         if (localStorage.getItem('rememberPlate') === 'true') {
@@ -1192,6 +1406,14 @@ func generateHTML(zones []string) string {
                 plateInput.setSelectionRange(pos - (original.length - plateInput.value.length), pos - (original.length - plateInput.value.length));
             }
         });
+
+        function updateBalanceDisplay() {
+            const el = document.getElementById('balanceIndicator');
+            if (!balanceKnown) { el.style.display = 'none'; return; }
+            el.style.display = 'block';
+            el.textContent = 'Parking account balance: €' + knownBalance.toFixed(2);
+            el.style.color = knownBalance < 1 ? '#ef4444' : '#64748b';
+        }
 
         function isValidPlate(plate) {
             const stripped = plate.replace(/[ -]/g, '');
@@ -1254,6 +1476,27 @@ func generateHTML(zones []string) string {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Generate Invoice';
                 return;
+            }
+
+            // Client-side balance check (soft check)
+            if (balanceKnown && formData.zone !== 'Donate') {
+                const zoneSelect = document.getElementById('zone');
+                const selectedOption = zoneSelect.options[zoneSelect.selectedIndex];
+                // Extract price from option text like "Zone - €0.70/hr (max 10h)"
+                const priceMatch = selectedOption.text.match(/€([\d.]+)/);
+                if (priceMatch) {
+                    const hourlyRate = parseFloat(priceMatch[1]);
+                    const maxMatch = selectedOption.text.match(/max (\d+)h/);
+                    const maxHours = maxMatch ? parseInt(maxMatch[1]) : formData.hours;
+                    const effectiveHours = Math.min(formData.hours, maxHours);
+                    const estimatedFee = effectiveHours * hourlyRate;
+                    if (knownBalance < estimatedFee) {
+                        formError.textContent = 'Insufficient parking account balance (€' + knownBalance.toFixed(2) + ') for this parking session (€' + estimatedFee.toFixed(2) + ')';
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Generate Invoice';
+                        return;
+                    }
+                }
             }
 
             try {
@@ -1363,12 +1606,45 @@ func generateHTML(zones []string) string {
 
                     if (data.found) {
                         clearInterval(checkSMSInterval);
-                        showSuccess(data.content);
+                        if (data.success === true) {
+                            // Update balance
+                            if (data.balance !== undefined) {
+                                knownBalance = data.balance;
+                                balanceKnown = true;
+                                updateBalanceDisplay();
+                            }
+                            showSuccess('Parking valid until ' + data.valid_until);
+                        } else if (data.success === false) {
+                            // Update balance
+                            if (data.balance !== undefined) {
+                                knownBalance = data.balance;
+                                balanceKnown = true;
+                                updateBalanceDisplay();
+                            }
+                            showRejection(data.balance);
+                        } else {
+                            // Unknown SMS format
+                            showSuccess(data.content);
+                        }
                     }
                 } catch (error) {
                     console.error('Error checking SMS:', error);
                 }
             }, 3000);
+        }
+
+        function showRejection(bal) {
+            document.getElementById('paymentStatus').style.display = 'none';
+            document.getElementById('successMessage').style.display = 'none';
+            const rejEl = document.getElementById('rejectionMessage');
+            let html = '<h3>Parking Not Activated</h3>';
+            html += '<p>We\'re sorry, parking could not be activated due to insufficient balance in the parking account.</p>';
+            html += '<p>Your Lightning payment was received but parking was not registered.</p>';
+            if (bal !== undefined) {
+                html += '<p>Account balance: €' + bal.toFixed(2) + '</p>';
+            }
+            rejEl.innerHTML = html;
+            rejEl.style.display = 'block';
         }
 
         function showSuccess(smsContent) {
@@ -1378,6 +1654,7 @@ func generateHTML(zones []string) string {
                 localStorage.setItem('rememberPlate', 'true');
             }
             document.getElementById('paymentStatus').style.display = 'none';
+            document.getElementById('rejectionMessage').style.display = 'none';
             const successEl = document.getElementById('successMessage');
             let html = '<h3>✅ Parking Confirmed!</h3>';
             if (smsContent) {
@@ -1398,6 +1675,7 @@ func generateHTML(zones []string) string {
                 document.getElementById('paymentStatus').innerHTML =
                     '<div class="spinner"></div><p>Waiting for payment...</p>';
                 document.getElementById('successMessage').style.display = 'none';
+                document.getElementById('rejectionMessage').style.display = 'none';
             }, 5000);
         }
 
