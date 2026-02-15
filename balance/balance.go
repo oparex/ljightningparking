@@ -32,13 +32,17 @@ func Close() {
 	}
 }
 
-func GetLastBalance() (float64, error) {
-	var balance float64
-	err := db.QueryRow("SELECT balance FROM balance_log ORDER BY id DESC LIMIT 1").Scan(&balance)
+// GetLastBalance returns the most recent balance and whether one exists.
+func GetLastBalance() (float64, bool, error) {
+	var bal float64
+	err := db.QueryRow("SELECT balance FROM balance_log ORDER BY id DESC LIMIT 1").Scan(&bal)
 	if err == sql.ErrNoRows {
-		return -1, nil
+		return 0, false, nil
 	}
-	return balance, err
+	if err != nil {
+		return 0, false, err
+	}
+	return bal, true, nil
 }
 
 func InsertBalance(balance float64, source string) error {
@@ -57,11 +61,16 @@ func GetLastBalanceTime() (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
-	t, err := time.Parse("2006-01-02 15:04:05", createdAt)
-	if err != nil {
-		return time.Time{}, err
+	for _, layout := range []string{
+		"2006-01-02 15:04:05",
+		time.RFC3339,
+		"2006-01-02T15:04:05Z",
+	} {
+		if t, err := time.Parse(layout, createdAt); err == nil {
+			return t, nil
+		}
 	}
-	return t, nil
+	return time.Time{}, fmt.Errorf("cannot parse timestamp %q", createdAt)
 }
 
 // IsBalanceStale returns true if there is no balance record or the last one is older than maxAge.

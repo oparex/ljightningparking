@@ -169,10 +169,10 @@ func handleSubmit(c *gin.Context) {
 
 	// Server-side balance check for non-Donate zones
 	if req.Zone != "Donate" {
-		bal, err := balance.GetLastBalance()
+		bal, known, err := balance.GetLastBalance()
 		if err != nil {
 			log.Printf("Failed to check balance: %v", err)
-		} else if bal >= 0 && bal < feeEuros {
+		} else if known && bal < feeEuros {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error":   "Insufficient parking account balance",
 				"balance": bal,
@@ -327,7 +327,7 @@ func handleWakeup(c *gin.Context) {
 }
 
 func handleBalance(c *gin.Context) {
-	bal, err := balance.GetLastBalance()
+	bal, known, err := balance.GetLastBalance()
 	if err != nil {
 		log.Printf("Failed to get balance: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get balance"})
@@ -335,7 +335,7 @@ func handleBalance(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"balance": bal,
-		"known":   bal >= 0,
+		"known":   known,
 	})
 }
 
@@ -492,9 +492,20 @@ func searchReceivedSMS(plate, after string) ([]SMSSearchResult, error) {
 		return nil, fmt.Errorf("SMS server error: %s - %s", resp.Status, string(body))
 	}
 
-	var results []SMSSearchResult
-	if err := json.NewDecoder(resp.Body).Decode(&results); err != nil {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return nil, err
+	}
+
+	// The SMS server may return a single object or an array
+	var results []SMSSearchResult
+	if err := json.Unmarshal(body, &results); err != nil {
+		// Try single object
+		var single SMSSearchResult
+		if err2 := json.Unmarshal(body, &single); err2 != nil {
+			return nil, fmt.Errorf("failed to decode SMS response: %v", err)
+		}
+		results = []SMSSearchResult{single}
 	}
 
 	return results, nil
@@ -1310,7 +1321,6 @@ func generateHTML(zones []string) string {
             </div>
 
             <button type="submit" class="submit-btn" id="submitBtn">Generate Invoice</button>
-            <div id="balanceIndicator" style="display:none; text-align:center; margin-top:12px; font-size:14px; font-weight:600; color:#64748b;"></div>
             <div id="formError" class="error"></div>
         </form>
 
@@ -1408,11 +1418,7 @@ func generateHTML(zones []string) string {
         });
 
         function updateBalanceDisplay() {
-            const el = document.getElementById('balanceIndicator');
-            if (!balanceKnown) { el.style.display = 'none'; return; }
-            el.style.display = 'block';
-            el.textContent = 'Parking account balance: €' + knownBalance.toFixed(2);
-            el.style.color = knownBalance < 1 ? '#ef4444' : '#64748b';
+            // balance is tracked internally but not shown to user
         }
 
         function isValidPlate(plate) {
@@ -1491,7 +1497,7 @@ func generateHTML(zones []string) string {
                     const effectiveHours = Math.min(formData.hours, maxHours);
                     const estimatedFee = effectiveHours * hourlyRate;
                     if (knownBalance < estimatedFee) {
-                        formError.textContent = 'Insufficient parking account balance (€' + knownBalance.toFixed(2) + ') for this parking session (€' + estimatedFee.toFixed(2) + ')';
+                        formError.textContent = 'We cannot send a parking request for this amount right now, please try again later.';
                         submitBtn.disabled = false;
                         submitBtn.textContent = 'Generate Invoice';
                         return;
