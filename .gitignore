@@ -1,13 +1,13 @@
 # Binaries
-parking-app
+lightningparking
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
 
-# binary
-lightningparking
+# DB
+*.db
 
 # Test binary, built with `go test -c`
 *.test
