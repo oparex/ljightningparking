@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -31,6 +32,10 @@ type Config struct {
 }
 
 var config Config
+
+// smsSentPayments tracks payment hashes for which SMS has already been sent,
+// preventing duplicate sends when the frontend polls check-payment multiple times.
+var smsSentPayments sync.Map
 
 // SubmitRequest represents the incoming form data
 type SubmitRequest struct {
@@ -239,18 +244,28 @@ func handleCheckPayment(c *gin.Context) {
 			return
 		}
 
-		smsSentAt := time.Now().UTC().Format(time.RFC3339)
+		// Only send SMS once per payment hash to prevent duplicates
+		// from concurrent polling requests
+		if _, alreadySent := smsSentPayments.LoadOrStore(paymentHash, true); !alreadySent {
+			smsSentAt := time.Now().UTC().Format(time.RFC3339)
 
-		if plate != "" && zone != "" && hours != "" {
-			err := sendToParkingServer(plate, zone, hours, amount)
-			if err != nil {
-				log.Printf("Failed to send data to parking server: %v", err)
-			} else {
+			if plate != "" && zone != "" && hours != "" {
+				err := sendToParkingServer(plate, zone, hours, amount)
+				if err != nil {
+					log.Printf("Failed to send data to parking server: %v", err)
+					// Remove from map so next poll retries
+					smsSentPayments.Delete(paymentHash)
+					c.JSON(http.StatusOK, gin.H{"paid": true, "sms_sent_at": smsSentAt, "sms_error": true})
+					return
+				}
 				log.Printf("Successfully sent parking data for plate %s", plate)
 			}
+
+			c.JSON(http.StatusOK, gin.H{"paid": true, "sms_sent_at": smsSentAt})
+			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"paid": true, "sms_sent_at": smsSentAt})
+		c.JSON(http.StatusOK, gin.H{"paid": true, "already_sent": true})
 		return
 	}
 
